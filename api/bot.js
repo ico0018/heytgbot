@@ -1,12 +1,15 @@
-import TelegramBot from "node-telegram-bot-api";
+const TelegramBot = require("node-telegram-bot-api");
 
 const token = process.env.BOT_TOKEN;
-const bot = new TelegramBot(token, { polling: false });
 
-// 确保只初始化一次（防止 Vercel 热重载重复绑定）
-if (!global.botInitialized) {
-  bot.setWebHook(`https://heytgbot.vercel.app/api/bot`);
-  global.botInitialized = true;
+// 打印环境变量（注意：不要在生产里长期打印 Token，会泄露）
+console.log("BOT_TOKEN from env:", token ? "存在 ✅" : "未设置 ❌");
+
+if (!global.bot && token) {
+  const bot = new TelegramBot(token, { polling: false });
+
+  // 设置 Webhook
+  bot.setWebHook("https://heytgbot.vercel.app/api/bot");
 
   // 处理 /start 命令
   bot.onText(/\/start/, (msg) => {
@@ -18,18 +21,23 @@ if (!global.botInitialized) {
       }
     });
   });
+
+  global.bot = bot;
 }
 
-export default function handler(req, res) {
+module.exports = (req, res) => {
   if (req.method === "POST") {
     try {
-      bot.processUpdate(req.body);
+      if (!token) {
+        console.error("❌ BOT_TOKEN 未设置，无法处理更新");
+      } else {
+        global.bot.processUpdate(req.body);
+      }
     } catch (err) {
       console.error("Error processing update:", err);
     }
     return res.status(200).end();
   }
 
-  // 用于调试：在浏览器访问 /api/bot 会返回这一行
   res.status(200).send("Bot is running via Webhook!");
-}
+};
